@@ -1,0 +1,41 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /var/lib/promtail/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: syslog
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: syslog
+          __path__: /var/log/rsyslog/hosts/*/*.json
+    pipeline_stages:
+      # rsyslog writes one JSON object per line (see rsyslog/rsyslog.conf).
+      # Pull the fields out and promote the low-cardinality ones to labels
+      # so Grafana/LogQL can filter and aggregate by them.
+      - json:
+          expressions:
+            timestamp: timestamp
+            host: host
+            severity: severity
+            facility: facility
+            app: app
+            pid: pid
+            message: message
+      - timestamp:
+          source: timestamp
+          format: RFC3339
+      - labels:
+          host:
+          severity:
+          facility:
+          app:
+      - output:
+          source: message

@@ -1,0 +1,63 @@
+services:
+  rsyslog:
+    build: ./rsyslog
+    container_name: syslog-rsyslog
+    restart: unless-stopped
+    ports:
+      - "514:514/udp"
+      - "514:514/tcp"
+      - "20514:20514/tcp"   # optional RELP (reliable TCP) input
+    volumes:
+      - ./data/rsyslog:/var/log/rsyslog
+    networks: [syslog-net]
+
+  promtail:
+    image: grafana/promtail:2.9.8
+    container_name: syslog-promtail
+    restart: unless-stopped
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - ./data/rsyslog:/var/log/rsyslog:ro
+      - promtail-positions:/var/lib/promtail
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+      - rsyslog
+    networks: [syslog-net]
+
+  loki:
+    image: grafana/loki:2.9.8
+    container_name: syslog-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - ./data/loki:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks: [syslog-net]
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: syslog-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+      - ./data/grafana:/var/lib/grafana
+    depends_on:
+      - loki
+    networks: [syslog-net]
+
+networks:
+  syslog-net:
+    driver: bridge
+
+volumes:
+  promtail-positions:
