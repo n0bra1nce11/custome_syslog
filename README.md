@@ -73,18 +73,36 @@ and severity panels populate within a few seconds.
 Replace `<this-host>` with this machine's IP/hostname.
 
 **Linux server (rsyslog client, forward everything):**
-
-```
-# /etc/rsyslog.d/60-forward.conf
-*.* action(type="omfwd" target="<this-host>" port="514" protocol="udp")
-# or for reliability over TCP:
-*.* action(type="omfwd" target="<this-host>" port="514" protocol="tcp")
-```
+Copy [`clients/linux/rsyslog-forward.conf`](clients/linux/rsyslog-forward.conf)
+to `/etc/rsyslog.d/60-forward.conf` on the client, replace
+`SYSLOG_SERVER` with this machine's IP/hostname, and
+`sudo systemctl restart rsyslog`.
 
 **Linux server (systemd/journald, no rsyslog installed):**
 Install `rsyslog` (it picks up journald automatically via `imjournal`) and
 use the forwarding rule above, or point `systemd-journal-upload` at a
 separate collector if you'd rather avoid rsyslog on the client.
+
+**Windows server (via NXLog):**
+Windows Event Log isn't syslog, so it needs a converter. Install
+[NXLog Community Edition](https://nxlog.co/community) on the Windows
+host, then use
+[`clients/windows/nxlog.conf`](clients/windows/nxlog.conf) as
+`C:\Program Files\nxlog\conf\nxlog.conf` (replace `SYSLOG_SERVER` with
+this machine's IP/hostname, then restart the `nxlog` service). It ships
+Application/System/Security event log entries as RFC5424 syslog — the
+Windows host then shows up in the Grafana dashboard's host filter
+exactly like a Linux box, using its Windows computer name, with no
+separate config needed on this side.
+
+If you want richer Windows-specific fields (Event ID, Provider Name,
+Channel) instead of just the flattened message text, the alternative is
+running Promtail directly on the Windows host with its built-in
+`windows_events` scrape target, pushing straight to
+`http://<this-host>:3100/loki/api/v1/push`. That bypasses rsyslog
+entirely and lands under a different Loki `job` label, so it needs its
+own dashboard panels rather than showing up in the existing ones — ask
+if you want this wired up instead of/alongside NXLog.
 
 **Network devices (Cisco/Juniper/pfSense/OPNsense/UniFi, etc.):**
 Every vendor has a "syslog server" field in system logging settings — set
