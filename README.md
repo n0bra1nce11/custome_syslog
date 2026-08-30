@@ -175,3 +175,6 @@ docker compose ps                  # all 4 containers should be "Up"
 If Promtail shows `permission denied` reading log files, check
 `data/rsyslog/hosts/*/*.json` are world-readable (rsyslog creates them
 `0644` by default - see `rsyslog/rsyslog.conf`).
+
+
+
