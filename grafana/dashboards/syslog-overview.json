@@ -208,6 +208,48 @@
         }
       ],
       "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending" }
+    },
+    {
+      "id": 12,
+      "title": "Failed Windows Logon Attempts (range)",
+      "type": "stat",
+      "description": "Windows Security log event 4625. These arrive at severity=info, not err/crit, since Windows classifies Security events as Audit Success/Failure rather than by severity - so this is matched on the event's own message text instead of the severity filter.",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 38 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({job=\"syslog\", host=~\"$host\"} |= \"An account failed to log on\" [$__range]))",
+          "refId": "A"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 13,
+      "title": "Failed Windows Logon Attempts (live)",
+      "type": "logs",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 42 },
+      "targets": [
+        {
+          "expr": "{job=\"syslog\", host=~\"$host\"} |= \"An account failed to log on\"",
+          "refId": "A"
+        }
+      ],
+      "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending" }
     }
   ]
 }
