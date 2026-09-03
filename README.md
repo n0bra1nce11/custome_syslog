@@ -72,6 +72,27 @@ and severity panels populate within a few seconds.
 
 Replace `<this-host>` with this machine's IP/hostname.
 
+**Step 0 (always do this first): confirm network reachability.**
+Before installing any agent on a new device, confirm it can actually
+reach the collector over the network. This is the single most common
+source of "it's not working" once an agent is configured, and no
+agent-side troubleshooting can fix it if the answer is no - two
+machines with no route between them fail identically for every
+protocol, not just syslog.
+
+Linux/macOS device:
+```bash
+./clients/preflight-check.sh <this-host>
+```
+Windows device (PowerShell):
+```powershell
+.\clients\windows\preflight-check.ps1 -CollectorHost <this-host>
+```
+Only move on to installing an agent once this reports all checks
+passing. If it fails, that's a routing/firewall/VPN problem to solve
+first (see "Reaching devices on a different network" below) -
+reinstalling or reconfiguring the agent won't help.
+
 **Linux server (rsyslog client, forward everything):**
 Copy [`clients/linux/rsyslog-forward.conf`](clients/linux/rsyslog-forward.conf)
 to `/etc/rsyslog.d/60-forward.conf` on the client, replace
@@ -138,6 +159,50 @@ volume.
 **Reliable delivery (RELP):** if UDP loss is a concern (e.g. WAN links),
 point clients that support RELP (`rsyslog` with `omrelp`) at port
 `20514/tcp` instead of 514.
+
+## Reaching devices on a different network
+
+If the pre-flight check (Step 0 above) fails, the device and collector
+likely sit on separate networks with no route between them (different
+office, different VLAN, home WiFi, etc.) — the same problem every
+centralized monitoring tool has, not something specific to this stack.
+Two options:
+
+- **Fix routing** — put the collector and the device on the same
+  subnet/VLAN, or have network ops add a route between the two
+  subnets. Best when all devices are on infrastructure your
+  organization already controls end-to-end.
+- **Tailscale** (or another mesh VPN) — install it on both the
+  collector and the device; they get stable addresses reachable from
+  each other regardless of physical network, NAT, or location. Best
+  for remote/WFH devices, other sites, or any network you don't
+  control routing for. For more than a handful of devices, use a
+  **reusable auth key** (generated in the Tailscale admin console,
+  optionally tagged) for unattended enrollment —
+  `tailscale up --authkey=tskey-xxxx` — instead of the interactive
+  browser login used for the first device, and write an ACL rule
+  restricting tagged devices to only reach the collector's ports
+  (514/3100), nothing else.
+
+## Running the collector itself on Windows
+
+The whole stack (rsyslog, Promtail, Loki, Grafana) is just
+docker-compose, so it isn't tied to Linux. To host it from a Windows
+machine instead:
+
+1. Install **Docker Desktop for Windows** (uses the WSL2 backend).
+2. Copy this entire project directory over.
+3. Run the same commands from a WSL2 terminal or PowerShell with Docker
+   Desktop running: `docker compose up -d --build`.
+
+`docker-compose.yml` and every service config are unchanged — Docker
+Desktop handles the Linux-container compatibility layer. The only
+practical differences: Windows Defender Firewall (rather than
+iptables/ufw) is what needs the inbound port rules (514/udp, 514/tcp,
+20514/tcp, 3100/tcp, 3000/tcp) opened for other devices to reach it,
+and file paths in any docs/scripts referencing `/home/...` would need
+Windows equivalents if you're driving it from native PowerShell rather
+than a WSL2 shell.
 
 ## Data layout & retention
 
