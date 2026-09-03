@@ -83,26 +83,51 @@ Install `rsyslog` (it picks up journald automatically via `imjournal`) and
 use the forwarding rule above, or point `systemd-journal-upload` at a
 separate collector if you'd rather avoid rsyslog on the client.
 
-**Windows server (via NXLog):**
-Windows Event Log isn't syslog, so it needs a converter. Install
-[NXLog Community Edition](https://nxlog.co/community) on the Windows
-host, then use
-[`clients/windows/nxlog.conf`](clients/windows/nxlog.conf) as
-`C:\Program Files\nxlog\conf\nxlog.conf` (replace `SYSLOG_SERVER` with
-this machine's IP/hostname, then restart the `nxlog` service). It ships
-Application/System/Security event log entries as RFC5424 syslog - the
-Windows host then shows up in the Grafana dashboard's host filter
-exactly like a Linux box, using its Windows computer name, with no
-separate config needed on this side.
+**Windows server (via Fluent Bit — recommended):**
+Windows Event Log isn't syslog, so it needs a converter. This stack uses
+[Fluent Bit](https://fluentbit.io/) (free, fully open-source, no
+edition tiers) with its native `winlog` input and `loki` output — it
+reads the Windows Event Log and pushes straight to Loki at
+`http://<this-host>:3100`, bypassing rsyslog entirely.
 
-If you want richer Windows-specific fields (Event ID, Provider Name,
-Channel) instead of just the flattened message text, the alternative is
-running Promtail directly on the Windows host with its built-in
-`windows_events` scrape target, pushing straight to
-`http://<this-host>:3100/loki/api/v1/push`. That bypasses rsyslog
-entirely and lands under a different Loki `job` label, so it needs its
-own dashboard panels rather than showing up in the existing ones - ask
-if you want this wired up instead of/alongside NXLog.
+1. Install Fluent Bit on the Windows host using the official installer
+   from [fluentbit.io/download](https://fluentbit.io/download) (default
+   path: `C:\Program Files\fluent-bit\`). The installer does **not**
+   register a Windows service on its own — that's a separate step below.
+2. Copy [`clients/windows/fluent-bit.conf`](clients/windows/fluent-bit.conf)
+   over `C:\Program Files\fluent-bit\conf\fluent-bit.conf`, replacing
+   `SYSLOG_SERVER` with this machine's IP/hostname.
+3. Register and start the service (Administrator PowerShell, one-time):
+   ```powershell
+   New-Service fluent-bit -BinaryPathName '"C:\Program Files\fluent-bit\bin\fluent-bit.exe" -c "C:\Program Files\fluent-bit\conf\fluent-bit.conf"' -StartupType Automatic
+   Start-Service fluent-bit
+   ```
+   To apply config changes later: `Restart-Service fluent-bit`.
+4. Allow outbound TCP 3100 through the Windows firewall if needed.
+
+Because this pushes directly to Loki instead of going through rsyslog,
+it lands under a separate `job="windows_events"` label rather than
+`job="syslog"`, so it has its own dashboard: **Windows Event Log**
+(provisioned automatically at `grafana/dashboards/windows-events.json`,
+same "Syslog" folder). Structured fields (Channel, Event ID, Message)
+are kept as JSON in the log body rather than promoted to Loki labels
+(those values are high-cardinality, which is bad practice for labels) —
+query them at view-time with LogQL, e.g. `{job="windows_events"} | json`.
+Exact field names can vary slightly by Fluent Bit version; check one
+real event in Grafana Explore after your first run and adjust the
+"Events by Channel" panel query if needed — see the note at the bottom
+of `fluent-bit.conf`.
+
+**Windows server (via NXLog — alternative):**
+If you'd rather keep every device in the exact same `job="syslog"`
+pipeline/dashboard (at the cost of losing structured fields, just a
+flattened message string), use
+[NXLog Community Edition](https://nxlog.co/community) instead — also
+free. Config: [`clients/windows/nxlog.conf`](clients/windows/nxlog.conf)
+→ `C:\Program Files\nxlog\conf\nxlog.conf`, replace `SYSLOG_SERVER`,
+restart the `nxlog` service. It ships event log entries as RFC5424
+syslog, so the host shows up in the existing Syslog Overview dashboard's
+host filter automatically, no separate dashboard needed.
 
 **Network devices (Cisco/Juniper/pfSense/OPNsense/UniFi, etc.):**
 Every vendor has a "syslog server" field in system logging settings - set

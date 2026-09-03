@@ -1,0 +1,99 @@
+{
+  "id": null,
+  "uid": "windows-events",
+  "title": "Windows Event Log",
+  "tags": ["windows", "fluent-bit", "loki"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "host",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "label_values({job=\"windows_events\"}, host)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total Events (range)",
+      "type": "stat",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({job=\"windows_events\", host=~\"$host\"} [$__range]))",
+          "refId": "A"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 2,
+      "title": "Active Windows Hosts (range)",
+      "type": "stat",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
+      "targets": [
+        {
+          "expr": "count(count by (host) (count_over_time({job=\"windows_events\", host=~\"$host\"} [$__range])))",
+          "refId": "A"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 3,
+      "title": "Events by Channel (range)",
+      "type": "bargauge",
+      "description": "Assumes the winlog record has a field named \"Channel\" - verify the real field name in Grafana Explore on first run and adjust this query if it differs.",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (Channel) (count_over_time({job=\"windows_events\", host=~\"$host\"} | json [$__range])))",
+          "refId": "A"
+        }
+      ],
+      "options": { "orientation": "horizontal" }
+    },
+    {
+      "id": 4,
+      "title": "Event Volume Over Time",
+      "type": "timeseries",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "expr": "sum by (host) (count_over_time({job=\"windows_events\", host=~\"$host\"} [$__interval]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "fillOpacity": 20, "stacking": { "mode": "normal" } } }, "overrides": [] }
+    },
+    {
+      "id": 5,
+      "title": "Live Event Stream (raw JSON)",
+      "type": "logs",
+      "description": "Shown as raw JSON until field names are confirmed. Once confirmed (see fluent-bit.conf), this can be cleaned up with a LogQL pipeline like {job=\"windows_events\"} | json | line_format \"{{.Message}}\".",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "expr": "{job=\"windows_events\", host=~\"$host\"}",
+          "refId": "A"
+        }
+      ],
+      "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending" }
+    }
+  ]
+}
