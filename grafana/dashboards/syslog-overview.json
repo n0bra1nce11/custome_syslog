@@ -250,6 +250,95 @@
         }
       ],
       "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending" }
+    },
+    {
+      "id": 14,
+      "title": "Hosts Active Now",
+      "type": "stat",
+      "description": "Count of hosts that sent at least one log line in the last 5 minutes. \"Active\" here means 5-minute recency - a low-traffic device that legitimately only logs every 10-15 minutes could show as inactive even though it's fine; adjust the [5m] window in this panel and the two below if that's too aggressive for your devices.",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 4, "w": 12, "x": 0, "y": 50 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "count(sum by (host) (count_over_time({job=\"syslog\"} [5m])))",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 15,
+      "title": "Hosts Gone Silent",
+      "type": "stat",
+      "description": "Hosts that sent logs at some point in the last 24h (so we know about them) but nothing in the last 5 minutes - likely offline, disconnected, or their forwarding agent stopped.",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 4, "w": 12, "x": 12, "y": 50 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "count(sum by (host) (count_over_time({job=\"syslog\"} [24h])) unless sum by (host) (count_over_time({job=\"syslog\"} [5m])))",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 16,
+      "title": "Active Hosts (sent logs in last 5m)",
+      "type": "bargauge",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 54 },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "green" } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (host) (count_over_time({job=\"syslog\"} [5m]))",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": { "orientation": "horizontal" }
+    },
+    {
+      "id": 17,
+      "title": "Inactive Hosts (seen in 24h, silent 5m+)",
+      "type": "bargauge",
+      "description": "Value shown is total events in the last 24h - useful to gauge whether it was a chatty host that suddenly stopped, or a quiet one. Empty panel = nothing has gone quiet.",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 54 },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "red" } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (host) (count_over_time({job=\"syslog\"} [24h])) unless sum by (host) (count_over_time({job=\"syslog\"} [5m]))",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": { "orientation": "horizontal" }
     }
   ]
 }
